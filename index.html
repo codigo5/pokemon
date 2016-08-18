@@ -1,5 +1,548 @@
 <html>
-<head><title>Código55 Web - Pokemon Go</title>
+<head>
+  <title>Cod Pokemon Go Viewer</title>
+      <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <link rel="stylesheet" href="/style.css">
 </head>
-</body>Código5 WEB - Pokemon Go</body>
-</html
+<body>
+  <div class="container">
+    <!-- <div id="msg">Manutenção. To mexendo.</div> -->
+      <div id="menu">
+        <label><b>Lat/Long</b>
+          <br><i>latitude e Longitude do ponto inicial da busca. Ex.: "-15.587514566704302,-56.08031903928679"</i>
+          <br>
+      <input type="text" id="latlng" value=""></label>
+      <br>
+      <label><b>Show Points</b>
+        <br><i>Exibe os pontos por ondefaz a busca</i>
+        <br>
+    <select id="showPoints">
+      <option value="1">Yes</option>
+      <option value="0" selected="selected">No</option>
+    </select></label>
+    <br>
+    <label><b>Show Route</b>
+      <br><i>Exibe uma imagem com a rota feita</i>
+      <br>
+    <a style="display:none;" id="mapa_link" href="#" target="_blank">Show Route</a></label>
+
+        <br>
+        <label><b>Step Limit</b>
+          <br><i>Quantidade de pontos que fara a busca.(Recomendo menor que 80)</i>
+          <br>
+          <input type="text" id="step_limit" value="80">
+        </label>
+
+        <br>
+        <label><b>Step Size</b>
+          <br><i>Distancia de cada ponto.(Melhor nao alterar "0.0005")</i>
+          <br>
+          <input type="text" id="step_size" value="0.000500">
+        </label>
+
+        <br>
+        <label><b>LOG</b>
+        <div id="log"></div>
+        </label>
+                        <br>
+        <!-- <iframe height='265' scrolling='no' src='eevee/index.html' frameborder='no' allowtransparency='true' allowfullscreen='true' style='width: 100%;'>See the Pen <a href='http://codepen.io/davidkpiano/pen/NAZarB/'>CSS Eevee</a> by David Khourshid (<a href='http://codepen.io/davidkpiano'>@davidkpiano</a>) on <a href='http://codepen.io'>CodePen</a>.
+</iframe> -->
+
+
+      <button id="fechar" onclick="hideMenu()"> X </button>
+    </div>
+    <div id="map"></div>
+      <div id="foto"></div>
+    <div id="buttons">
+      <!-- <button id="refresh">Refresh</button> -->
+      <button id="find" onclick="onFindClick()">Find</button>
+      <button id="center" onclick="centerToPins()">Center</button>
+      <button id="total">Total: <span class="total">0%</span> Found: <span class="encontrado">0</span></button>
+      <!-- <button id="encontrado">Found: <span>0</span></button> -->
+      <button id="abrir" onclick="showMenu()"> Menu </button>
+
+
+    </div>
+  </div>
+
+  <script type="text/javascript">
+    var map;
+    var coords;
+    var markerP;
+    var mainInfoWindow;
+    var showPoints;
+    var total = 0;
+    var totalVlr = 30;
+    var encontrado = 0;
+    var pokemonsDb;
+    var pokemonsMarkers = {};
+    var pointsButton = document.querySelector('#points');
+    var refreshButton = document.querySelector('#refresh');
+    var findButton = document.querySelector('#find');
+    var totalButton = document.querySelector('#total span.total');
+    var encontradoButton = document.querySelector('#total span.encontrado');
+    var contador = 0;
+
+    var showMenu = function(e) {
+      document.getElementById("menu").style.display = "block";
+    };
+    var hideMenu = function(e) {
+      document.getElementById("menu").style.display = "none";
+    };
+
+    var getPokemonInfo = function(pokemonName) {
+      if (pokemonsDb && pokemonsDb.length) {
+        return pokemonsDb.filter(function(pokemon) {
+          return pokemon['pokemon-name'].toLowerCase() === pokemonName.toLowerCase();
+        })[0];
+      }
+    };
+
+    var getPokemonImage = function(pokemonName,pokemon) {
+      var info = getPokemonInfo(pokemonName);
+
+      if (info) {
+        return new google.maps.MarkerImage(
+          info['image-url'],
+          null, /* size is determined at runtime */
+          null, /* origin is 0,0 */
+          null, /* anchor is bottom center of the scaled image */
+          new google.maps.Size(40, 40)
+        );
+      }
+    };
+    var getInfoPokemon = function(pokemonId,pokemon) {
+      // console.log(pokemonId);
+      // console.log("name: " + pokemon.name);
+      // console.log("time_left: " + getSecond(pokemon.time_left));
+      // console.log("----------------------");
+      setLog("<b>name:</b> " + pokemon.name);
+      setLog("<b>time_left:</b> " + getSecond(pokemon.time_left));
+      setLog("<b>Lat/Long:</b> " + pokemon.lat + "," + pokemon.lng);
+      setLog("<b>Distance:(m)</b> " + setDistance(pokemon.lat,pokemon.lng));
+      setLog("----------------------");
+
+      try {
+
+        // var markerP = new google.maps.Marker({
+        //     position: {lat: pokemon.lat, lng: pokemon.lng},
+        //     map: map,
+        //     title: 'Me',
+        //     icon: new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/red.png")
+        //   });
+          var contentString = '<b>' + pokemon.name + '</b>'+
+          // "<br>Latitude: " + pokemon.lat +
+          // "<br>Longitude: " + pokemon.lng +
+          "<br>" + getSecond(pokemon.time_left)+
+          "<br>" + setDistance(pokemon.lat,pokemon.lng) + "m";
+          var infowindow = new google.maps.InfoWindow({
+              content: contentString
+            });
+            pokemonId.addListener('click', function() {
+              infowindow.open(map, pokemonId);
+            });
+
+      } catch (e) {
+        console.log('Something went wrong: ' + e.message);
+      }
+    };
+
+
+
+    var centerToPins = function() {
+      var markers = Object.keys(pokemonsMarkers);
+
+      if (markers.length) {
+        var bounds = markers
+          .map(function(key) {
+            return pokemonsMarkers[key];
+          })
+          .reduce(function(bounds, marker) {
+            return bounds.extend(marker.getPosition());
+          }, new google.maps.LatLngBounds());
+
+
+        map.setCenter(bounds.getCenter());
+        map.fitBounds(bounds);
+      }
+    };
+
+    var setLoading = function(element, loading) {
+      var html = (loading) ? '<img src="ajax-loader.gif"/>' : 'Refresh';
+      var disabled = loading;
+
+      element.innerHTML = html;
+      element.disabled = disabled;
+
+
+    };
+
+    var addPokemons = function(response) {
+      if (total>=totalVlr) {
+          total = 0;
+          totalVlr = 0;
+          contador = 0;
+                // console.log("menor igual");
+      }else{
+
+      try {
+        var response = JSON.parse(response);
+        var pokemons = response.data;
+
+                document.getElementById("mapa_link").href = response.path;
+                document.getElementById("mapa_link").style.display = "block";
+
+        // console.log("contador: " + contador);
+        //
+        // console.log(response.error);
+
+        if (contador==0) {
+            contador = 1;
+            // console.log(response.path);
+            setLog(response.path);
+            coords = response.coords;
+            totalVlr = Object.keys(coords).length;
+        }
+        var showPoints = document.getElementById("showPoints").value;
+        // console.log("showPoints: " + showPoints);
+        // console.log("total: " + total);
+        // console.log("totalVlr: " + totalVlr);
+        if(showPoints==1){
+          var labelPonit = "Point " + total + " of " + totalVlr;
+          setPoint(coords[total].lat,coords[total].lng, labelPonit,total);
+        }
+
+        if (response.error) {
+          throw new Error(response.message);
+        } else if (Object.keys(pokemons).length) {
+          for (var pokemonId in response.data) {
+            var pokemon = pokemons[pokemonId];
+              //
+                // console.log(pokemon);
+
+            if (!pokemonsMarkers[pokemonId]) {
+
+                    encontrado = encontrado + 1;
+                    // console.log(encontrado);
+                    encontradoButton.innerHTML = encontrado;
+
+
+              pokemonsMarkers[pokemonId] = new google.maps.Marker({
+                position: {
+                  lat: pokemon.lat,
+                  lng: pokemon.lng
+                },
+                map: map,
+                title: pokemon.name + " " + getSecond(pokemon.time_left) + " " + setDistance(pokemon.lat,pokemon.lng) + "m",
+                icon: getPokemonImage(pokemon.name,pokemon)
+              });
+
+            getInfoPokemon(pokemonsMarkers[pokemonId],pokemon);
+            //  console.log(pokemonsMarkers[pokemonId]);
+            }
+          }
+
+          if (response.finished) {
+            setLoading(refreshButton, false);
+          }
+        }
+      } catch (e) {
+        console.log('Something went wrong: ' + e.message);
+      }
+
+              total = total + 1;
+
+              imprime = Math.round((total * 100) / totalVlr);
+              totalButton.innerHTML = imprime + "%";
+
+
+              }
+
+    };
+
+        // var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
+        var ws       = new WebSocket('ws://' + window.location.host + '/ws');
+    ws.onopen    = function()  { console.log('websocket opened'); setLog('websocket opened'); }
+    ws.onclose   = function()  { console.log('websocket closed'); setLog('websocket closed'); };
+    ws.onmessage = function(m) {
+      //console.log('websocket message: ' +  m.data);
+      // console.log(m);
+
+  // console.log(window.location.host);
+      addPokemons(m.data);
+    };
+
+    var onRefreshClick = function(e) {
+      navigator.geolocation.getCurrentPosition(function(position) {
+        console.log("lat/long: " + position.coords.latitude + "," + position.coords.longitude);
+        var pos = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+
+        map.setCenter(pos);
+
+        setLoading(refreshButton, true);
+
+        // Start searching
+         ws.send(pos.lat + ',' + pos.lng);
+        setMe(pos.lat,pos.lng);
+
+
+      }, function() {
+        handleLocationError(true, mainInfoWindow, map.getCenter());
+      });
+    };
+
+
+
+    var onFindClick = function(e) {
+      var latlng = document.getElementById("latlng").value;
+      var step_limit = document.getElementById("step_limit").value;
+      var step_size = document.getElementById("step_size").value;
+      if(latlng){
+        var latlng = latlng.split(",");
+          var pos = {
+            lat: latlng[0],
+            lng: latlng[1]
+          };
+        map.setCenter(pos);
+        ws.send(latlng + "," + step_limit + "," + step_size);
+      }else{
+        navigator.geolocation.getCurrentPosition(function(position) {
+          var pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+
+          map.setCenter(pos);
+          var latlng = pos.lat + ',' + pos.lng;
+          document.getElementById("latlng").value = latlng;
+          ws.send(latlng + "," + step_limit + "," + step_size);
+
+
+        }, function() {
+          handleLocationError(true, mainInfoWindow, map.getCenter());
+        });
+      }
+      //
+    };
+
+    var handleLocationError = function(browserHasGeolocation, mainInfoWindow, pos) {
+      mainInfoWindow.setPosition(pos);
+      mainInfoWindow.setContent(browserHasGeolocation ?
+        'Error: The Geolocation service failed.' :
+        'Error: Your browser doesn\'t support geolocation.');
+    };
+
+    var initMap = function() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: {lat: -15.587843399999999, lng: -56.080174199999995},
+        scrollwheel: false,
+        zoom: 18,
+        mapTypeId: google.maps.MapTypeId.HYBRID
+      });
+      setMe(-15.587843399999999,-56.080174199999995);
+      mainInfoWindow = new google.maps.InfoWindow({map: map});
+
+
+      if (navigator.geolocation) {
+        refreshButton.addEventListener('click', onRefreshClick);
+      } else {
+        handleLocationError(false, mainInfoWindow, map.getCenter());
+      }
+
+      center.addEventListener('click', centerToPins);
+    };
+
+    var loadPokemonsDb = function() {
+      var request = new XMLHttpRequest();
+      request.onload = function() {
+        try {
+          pokemonsDb = JSON.parse(this.responseText);
+        } catch (e) {
+          console.error('Fail to parse pokemons db');
+        }
+      };
+      request.open('get', '/pokemons.json', true);
+      request.send();
+    };
+
+    var getSecond = function(time) {
+      try {
+
+        var totalSec = time; //new Date().getTime() / 1000;
+        var hours = parseInt( totalSec / 3600 ) % 24;
+        var minutes = parseInt( totalSec / 60 ) % 60;
+        var seconds = totalSec % 60;
+        setLog("<b>hours</b> " + hours);
+        setLog("<b>minutes</b> " + minutes);
+        setLog("<b>seconds</b> " + seconds);
+        // var result = (hours < 10 ? "0" + hours : hours) + "h" + (minutes < 10 ? "0" + minutes : minutes) + "m" + (seconds  < 10 ? "0" + seconds : seconds) + "s";
+        // var result = (hours < 10 ? "0" + hours : hours) + "h" + (minutes < 10 ? "0" + minutes : minutes) + "m" + (seconds  < 10 ? "0" + seconds : seconds) + "s";
+        if(hours<1){
+          hours = "";
+        }else{
+          minutes = (hours < 10 ? "0" + hours : hours) + "h";
+        }
+        if(minutes<1){
+          minutes = "";
+        }else{
+          minutes = (minutes < 10 ? "0" + minutes : minutes) + "m";
+        }
+        if(seconds<1){
+          seconds = "";
+        }else{
+          seconds = ""(seconds < 10 ? "0" + seconds : seconds) + "m";
+        }
+        var result = hours + minutes + seconds;
+
+        return result;
+      } catch (e) {
+        console.log('Something went wrong: ' + e.message);
+      }
+    };
+
+
+
+        var setMe = function(latP,lngP) {
+          try {
+
+            var marker = new google.maps.Marker({
+                position: {lat: latP, lng: lngP},
+                map: map,
+                title: 'Me',
+                draggable:true,
+                icon: new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/blue.png")
+              });
+              var contentString = '<h1>Minha Localização</h1>'+
+              "<br>Latitude: " + latP +
+              "<br>Longitude: " + lngP;
+              var infowindow = new google.maps.InfoWindow({
+                  content: contentString
+                });
+                marker.addListener('click', function() {
+                  infowindow.open(map, marker);
+                });
+                // marker.event.addListener(marker, 'dragend', function() {
+                //                infoWindow.setContent("marker originally at this position: " + this.originalPos + " was dragged to: " + this.position);
+                //                infoWindow.open(map, this);
+                //            });
+               marker.addListener('dragend', function(e) {
+                  // console.log(this.position.lat());
+                  // console.log(this.position.lng());
+                  document.getElementById("latlng").value = this.position.lat() + "," + this.position.lng();
+                  findButton.addEventListener('click', onFindClick);
+
+//  var stepsize = "0.000300";
+// var lat0 = this.position.lat();
+// var lng0 = this.position.lng();
+//
+// var lngB = parseFloat(lng0) - parseFloat(stepsize);
+// var pinB = lat0 + "," + lngB;
+//
+// console.log(stepsize);
+// console.log(lat0 + "," + lng0);
+// console.log(pinB);
+
+// tamanho do quadrado
+//3, 9
+//5,25
+//7,49
+//9,81
+//11,121
+//13,169
+//15,225
+//17,289
+
+// var linhas = 3;
+// var colunas = 3;
+// console.log("linhas: " + linhas);
+// console.log("colunas: " + colunas);
+// console.log(linhas * colunas);
+
+
+
+
+                 });
+
+
+
+          } catch (e) {
+            console.log('Something went wrong: ' + e.message);
+          }
+        }
+
+
+        var setPoint = function(latP,lngP,labelPonit,labelIndex) {
+          try {
+            var markerP = new google.maps.Marker({
+                position: {lat: latP, lng: lngP},
+                map: map,
+                // label: labelIndex,
+                title: labelPonit+" ",
+                visible: true,
+                icon: new google.maps.MarkerImage("http://maps.google.com/mapfiles/ms/icons/red.png")
+              });
+              var infowindow = new google.maps.InfoWindow({
+                  content: labelPonit
+                });
+                markerP.addListener('click', function() {
+                  infowindow.open(map, markerP);
+
+                  // console.log(markerP);
+                  // markerP.visible = false;
+                  // markerP.title = "ssss ";
+                  // markerP.label = "ddddd ";
+                  // console.log(markerP);
+                });
+
+          } catch (e) {
+            console.log('Something went wrong: ' + e.message);
+          }
+        }
+
+        var setLog = function(saida) {
+            var log = document.getElementById('log');
+            log.innerHTML = log.innerHTML + saida + "<br>";
+        }
+
+        function distance(lat1, lon1, lat2, lon2, unit) {
+        	var radlat1 = Math.PI * lat1/180
+        	var radlat2 = Math.PI * lat2/180
+        	var theta = lon1-lon2
+        	var radtheta = Math.PI * theta/180
+        	var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+        	dist = Math.acos(dist)
+        	dist = dist * 180/Math.PI
+        	dist = dist * 60 * 1.1515
+        	if (unit=="K") { dist = dist * 1.609344 }
+        	if (unit=="N") { dist = dist * 0.8684 }
+        	if (unit=="M") { dist = Math.round( ( dist * 1.609344 ) * 1000 ) }
+        	return dist
+        }
+        var setDistance = function(lat,lng) {
+          var latlng = document.getElementById("latlng").value;
+          // setLog("<b>latlng:(origin)</b> " + latlng);
+          if(latlng){
+            var latlng = latlng.split(",");
+              var pos = {
+                lat: latlng[0],
+                lng: latlng[1]
+              };
+
+          // setLog("<b>Lat/Long:(origin)</b> " + pos.lat + "," + pos.lng);
+          // setLog("<b>Lat/Long:(dest)</b> " + lat + "," + lng);
+          return distance(pos.lat,pos.lng,lat,lng,"M");
+        } else{
+          return "nadinha";
+        }
+        }
+
+    loadPokemonsDb();
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?callback=initMap" async defer></script>
+</body>
+</html>
