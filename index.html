@@ -263,7 +263,7 @@
     };
 
         // var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
-        var ws       = new WebSocket('ws://' + window.location.host + '/ws');
+        var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
     ws.onopen    = function()  { console.log('websocket opened'); setLog('websocket opened'); }
     ws.onclose   = function()  { console.log('websocket closed'); setLog('websocket closed'); };
     ws.onmessage = function(m) {
