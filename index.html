@@ -268,7 +268,7 @@
     ws.onclose   = function()  { console.log('websocket closed'); setLog('websocket closed'); };
     ws.onmessage = function(m) {
       //console.log('websocket message: ' +  m.data);
-      // console.log(m);
+      console.log(m.resp);
 
   // console.log(window.location.host);
       addPokemons(m.data);
