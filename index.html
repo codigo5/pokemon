@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Cod Pokemon Go Viewer</title>
+  <link rel="shortcut icon" href="https://www.codigo5.com.br/app/uploads/fbrfg/favicon.ico">
       <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
@@ -27,12 +28,15 @@
       <br><i>Exibe uma imagem com a rota feita</i>
       <br>
     <a style="display:none;" id="mapa_link" href="#" target="_blank">Show Route</a></label>
+    <input onclick="clearMarkers();" type=button value="Hide Markers">
+         <input onclick="showMarkers();" type=button value="Show All Markers">
+         <input onclick="deleteMarkers();" type=button value="Delete Markers">
 
         <br>
         <label><b>Step Limit</b>
           <br><i>Quantidade de pontos que fara a busca.(Recomendo menor que 80)</i>
           <br>
-          <input type="text" id="step_limit" value="80">
+          <input type="text" id="step_limit" value="3">
         </label>
 
         <br>
@@ -71,6 +75,7 @@
     var map;
     var coords;
     var markerP;
+    var markers = [];
     var mainInfoWindow;
     var showPoints;
     var total = 0;
@@ -145,7 +150,7 @@
             });
 
       } catch (e) {
-        console.log('Something went wrong: ' + e.message);
+        console.log('Something went wrong(getInfoPokemon): ' + e.message);
       }
     };
 
@@ -249,7 +254,7 @@
           }
         }
       } catch (e) {
-        console.log('Something went wrong: ' + e.message);
+        console.log('Something went wrong(addPokemons): ' + e.message);
       }
 
               total = total + 1;
@@ -262,13 +267,15 @@
 
     };
 
-        // var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
-        var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
+            var ws       = new WebSocket('ws://codigo5.ddns.net:3000/ws');
+            // var ws       = new WebSocket('ws://' + window.location.host + '/ws');
     ws.onopen    = function()  { console.log('websocket opened'); setLog('websocket opened'); }
     ws.onclose   = function()  { console.log('websocket closed'); setLog('websocket closed'); };
     ws.onmessage = function(m) {
       //console.log('websocket message: ' +  m.data);
-      console.log(m.resp);
+        // var opa = JSON.parse(m.data);
+        // console.log("opa.resp");
+        // console.log(opa.resp);
 
   // console.log(window.location.host);
       addPokemons(m.data);
@@ -282,7 +289,6 @@
           lng: position.coords.longitude
         };
 
-        map.setCenter(pos);
 
         setLoading(refreshButton, true);
 
@@ -305,12 +311,14 @@
       if(latlng){
         var latlng = latlng.split(",");
           var pos = {
-            lat: latlng[0],
-            lng: latlng[1]
-          };
+            lat: parseFloat(latlng[0]),
+            lng: parseFloat(latlng[1])
+        };
+
         map.setCenter(pos);
         ws.send(latlng + "," + step_limit + "," + step_size);
-      }else{
+      }else if(navigator.geolocation){
+
         navigator.geolocation.getCurrentPosition(function(position) {
           var pos = {
             lat: position.coords.latitude,
@@ -349,7 +357,8 @@
 
 
       if (navigator.geolocation) {
-        refreshButton.addEventListener('click', onRefreshClick);
+        map.getCenter();
+        // refreshButton.addEventListener('click', onRefreshClick);
       } else {
         handleLocationError(false, mainInfoWindow, map.getCenter());
       }
@@ -377,11 +386,6 @@
         var hours = parseInt( totalSec / 3600 ) % 24;
         var minutes = parseInt( totalSec / 60 ) % 60;
         var seconds = totalSec % 60;
-        // setLog("<b>hours</b> " + hours);
-        // setLog("<b>minutes</b> " + minutes);
-        // setLog("<b>seconds</b> " + seconds);
-        // var result = (hours < 10 ? "0" + hours : hours) + "h" + (minutes < 10 ? "0" + minutes : minutes) + "m" + (seconds  < 10 ? "0" + seconds : seconds) + "s";
-        // var result = (hours < 10 ? "0" + hours : hours) + "h" + (minutes < 10 ? "0" + minutes : minutes) + "m" + (seconds  < 10 ? "0" + seconds : seconds) + "s";
         if(hours<1){
           hours = "";
         }else{
@@ -401,7 +405,7 @@
 
         return result;
       } catch (e) {
-        console.log('Something went wrong: ' + e.message);
+        console.log('Something went wrong(getSecond): ' + e.message);
       }
     };
 
@@ -471,7 +475,7 @@
 
 
           } catch (e) {
-            console.log('Something went wrong: ' + e.message);
+            console.log('Something went wrong(setMe): ' + e.message);
           }
         }
 
@@ -499,8 +503,11 @@
                   // console.log(markerP);
                 });
 
+                // markersP.push(markerP);
+
+
           } catch (e) {
-            console.log('Something went wrong: ' + e.message);
+            console.log('Something went wrong(setPoint): ' + e.message);
           }
         }
 
@@ -539,6 +546,26 @@
         } else{
           return "nadinha";
         }
+        }
+        function setMapOnAll(map) {
+          console.log("setMapOnAll");
+            console.log(map);
+          for (var i = 0; i < markersP.length; i++) {
+            markersP[i].setMap(map);
+          }
+        }
+
+        // Removes the markers from the map, but keeps them in the array.
+        function clearMarkers() {
+          console.log("clearMarkers");
+          setMapOnAll(null);
+        }
+
+        // Shows any markers currently in the array.
+        function showMarkers() {
+          console.log("showMarkers");
+            console.log(map);
+          setMapOnAll(map);
         }
 
     loadPokemonsDb();
